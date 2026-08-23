@@ -3,6 +3,35 @@
 MLOps pipeline for subscriber churn prediction on the KKBOX dataset (MLOps CCP capstone).
 Owner: Sasikirran R — B.Tech AI & Data Science, CIT Chennai. Faculty guide: Dr. Gayathri.
 
+> ### ⚠️ Known issues — this README is under revision
+>
+> An audit of the Week 1–2 pipeline found problems that parts of the text below
+> still describe incorrectly. Correcting them is the current priority; the notes
+> here take precedence over anything that contradicts them further down.
+>
+> - **The reported AUC of 0.9031 is inflated by target leakage.** `src/data/features.py`
+>   sets `GLOBAL_CUTOFF = 2017-03-20`, which sits *inside* the KKBOX label period —
+>   74.8% of `transactions.csv` is March 2017, and the March renewals are what the
+>   label is computed from. Measured on a fixed population, the leak is worth about
+>   **0.20 AUC**. The leak-free estimate is **~0.75**, which still clears the 0.70
+>   target in the spec.
+> - **`data/raw/` is real KKBOX data, not synthetic** — except `user_logs.csv`, which
+>   was fabricated by `make_synthetic_user_logs.py`. The "A note on data" section
+>   below has this backwards. All three engagement features derived from it score at
+>   chance (AUC 0.500).
+> - **The train/eval split is random, not temporal**, despite the name and docstring
+>   of `time_based_split()` in `src/models/train.py`.
+> - **35.6% of labelled members are silently dropped** by an inner join in
+>   `build_feature_table`, and the dropped set churns at 11.3% against 7.7% for those
+>   kept.
+>
+> `src/data/features_v3.py` is the corrected, leak-free pipeline — right cutoff
+> (2017-01-31, per KKBOX's own `WSDMChurnLabeller.scala`), streamed `user_logs`
+> aggregation, all 20 spec features, and a left join that drops nobody. It is not yet
+> wired into `train.py`, pending a re-download of the real competition data.
+>
+> Numbers quoted below this box should not be cited until the re-baseline lands.
+
 **Status: Week 1 and Week 2 of the spec complete.** Week 3 (Airflow DAG, Evidently drift
 reports, Docker Compose) and Week 4 (tests, load test, docs, demo) are not yet built.
 
