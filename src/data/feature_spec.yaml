@@ -1,0 +1,61 @@
+# W1-T4 baseline feature list. src/data/features.py (W2-T1) implements this
+# spec as scikit-learn transformers, producing one row per member (msno).
+#
+# label_window: every feature must be computed using only transaction/log
+# rows dated on or before each member's own `membership_expire_date`
+# (per §2.2). No global cutoff date is permitted — see §8.3.
+
+version: 1
+
+feature_groups:
+  recency:
+    source: [transactions, user_logs]
+    features:
+      - name: recency_days
+        description: days between last transaction_date and the member's membership_expire_date
+      - name: days_since_last_listen
+        description: days between last user_logs.date and the member's membership_expire_date
+
+  frequency:
+    source: [transactions, user_logs]
+    features:
+      - name: txns_last_90d
+        description: count of transactions in the 90 days before membership_expire_date
+      - name: active_days_last_30d
+        description: count of distinct user_logs.date entries in the 30 days before membership_expire_date
+
+  engagement_decay:
+    source: [user_logs]
+    features:
+      - name: engagement_trend
+        description: >
+          slope of total_secs over the trailing 4 weekly buckets before
+          membership_expire_date (linear fit of weekly mean total_secs vs. week index);
+          0.0 if fewer than 2 weeks of log history exist for the member
+
+  plan_behavior:
+    source: [transactions]
+    features:
+      - name: plan_price
+        description: plan_list_price on the member's most recent transaction before membership_expire_date
+      - name: is_auto_renew
+        description: is_auto_renew flag on the member's most recent transaction
+      - name: prior_cancellations
+        description: count of is_cancel=1 transactions strictly before the current membership window
+
+  demographics:
+    source: [members]
+    features:
+      - name: age
+        description: members.bd, clipped to [10, 100]; out-of-range treated as null
+      - name: gender
+        description: members.gender, categorical, blank treated as its own "unknown" category
+      - name: registered_via
+        description: members.registered_via, categorical registration channel
+      - name: tenure_days
+        description: days between members.registration_init_time and membership_expire_date
+
+label:
+  name: is_churn
+  source: train.csv
+  join_key: msno
