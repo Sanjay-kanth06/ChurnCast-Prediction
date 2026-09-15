@@ -1,0 +1,11 @@
+.venv/
+.git/
+__pycache__/
+*.pyc
+data/raw_kkbox_original/
+mlruns/
+mlflow.db
+frontend/node_modules/
+frontend/.next/
+notebooks/
+reports/*.html

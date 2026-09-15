@@ -1,15 +1,31 @@
+# Python
 __pycache__/
 *.pyc
 .venv/
 venv/
-mlruns/
-mlflow.db
-data/raw/*
-data/processed/*
-!data/raw/.gitkeep
-!data/processed/.gitkeep
-reports/*.html
-.env
 *.egg-info/
 .pytest_cache/
 .ruff_cache/
+
+# MLflow
+mlruns/
+mlflow.db
+
+# Data — raw extracts and derived features are regenerable
+data/raw/*
+data/processed/*
+data/raw_kkbox_original/
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+
+# Generated reports (HTML drift reports are large; metrics/plots are kept)
+reports/*.html
+
+# Frontend
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/.env.local
+
+# Local environment
+.env

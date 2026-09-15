@@ -1,0 +1,119 @@
+# ChurnCast prototype - full local stack.
+#
+#   docker compose up --build
+#
+#   frontend  http://localhost:3000
+#   api       http://localhost:8000      (docs at /docs)
+#   mlflow    http://localhost:5000
+#   airflow   http://localhost:8080      (admin / admin)
+#
+# NOT VERIFIED ON THE DEVELOPMENT MACHINE: Docker is not installed there, so
+# this file has been written and linted but never brought up. Treat it as
+# untested configuration until `docker compose up --build` has been run.
+#
+# The api and airflow services share ./data, ./reports and ./mlruns through bind
+# mounts so that a pipeline run in either container is visible to the other and
+# on the host.
+
+services:
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v3.1.0
+    container_name: churncast-mlflow
+    command: >
+      mlflow server
+      --host 0.0.0.0 --port 5000
+      --backend-store-uri sqlite:////mlflow/mlflow.db
+      --default-artifact-root /mlflow/mlruns
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./mlruns:/mlflow/mlruns
+      - mlflow-db:/mlflow
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://localhost:5000/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: churncast-api
+    depends_on:
+      mlflow:
+        condition: service_healthy
+    environment:
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+      MLFLOW_MODEL_NAME: ChurnCastModel
+      CHURNCAST_CORS_ORIGINS: http://localhost:3000,http://127.0.0.1:3000
+      CHURN_RISK_LOW_THRESHOLD: "0.40"
+      CHURN_RISK_HIGH_THRESHOLD: "0.70"
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+      - ./reports:/app/reports
+    # Build the dataset, features and model on first start, then serve.
+    command: >
+      sh -c "python scripts/run_pipeline.py --skip-drift &&
+             uvicorn src.api.main:app --host 0.0.0.0 --port 8000"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: churncast-frontend
+    depends_on:
+      - api
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+    ports:
+      - "3000:3000"
+
+  airflow:
+    image: apache/airflow:2.10.5-python3.11
+    container_name: churncast-airflow
+    depends_on:
+      mlflow:
+        condition: service_healthy
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+      AIRFLOW__CORE__DAGS_FOLDER: /opt/airflow/project/pipelines/dags
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+      MLFLOW_MODEL_NAME: ChurnCastModel
+      PYTHONPATH: /opt/airflow/project
+      _AIRFLOW_WWW_USER_USERNAME: admin
+      _AIRFLOW_WWW_USER_PASSWORD: admin
+    ports:
+      - "8080:8080"
+    volumes:
+      - .:/opt/airflow/project
+    command: >
+      bash -c "pip install --no-cache-dir mlflow scikit-learn xgboost pandas numpy pyyaml evidently &&
+               airflow db migrate &&
+               airflow users create --username admin --password admin
+                 --firstname Churn --lastname Cast --role Admin --email admin@example.com || true &&
+               airflow standalone"
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: churncast-postgres
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    volumes:
+      - postgres-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U airflow"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  mlflow-db:
+  postgres-db:

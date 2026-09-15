@@ -11,7 +11,6 @@ Usage:
 from __future__ import annotations
 
 import logging
-import os
 import zipfile
 from pathlib import Path
 
@@ -73,7 +72,6 @@ def download(force: bool = False) -> None:
 
 
 def _log_row_counts() -> None:
-    import pandas as pd
 
     for f in EXPECTED_FILES:
         path = RAW_DIR / f

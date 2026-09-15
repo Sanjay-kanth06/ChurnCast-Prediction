@@ -296,7 +296,6 @@ def _engagement_trend(logs: pd.DataFrame, cutoff: pd.Timestamp) -> pd.Series:
     # closed-form least-squares slope per member — avoids a per-group polyfit
     weekly["x"] = -weekly["week_idx"]
     g = weekly.groupby("msno")
-    n = g["x"].transform("size")
     xm, ym = g["x"].transform("mean"), g["total_secs"].transform("mean")
     weekly["_num"] = (weekly["x"] - xm) * (weekly["total_secs"] - ym)
     weekly["_den"] = (weekly["x"] - xm) ** 2
@@ -359,9 +358,8 @@ def _log_coverage(table: pd.DataFrame, cutoff: pd.Timestamp) -> None:
     and the dropped set churned at 11.32% against 7.71% for those kept. Nothing
     is dropped here, but coverage is logged every run so a collapse in usable
     history can never again hide behind a healthy-looking AUC."""
-    n = len(table)
     log.info("feature cutoff        = %s", cutoff.date())
-    log.info("labelled members      = %d  (churn %.4f)", n, table["is_churn"].mean())
+    log.info("labelled members      = %d  (churn %.4f)", len(table), table["is_churn"].mean())
     for col, label in [("has_txn_history", "transaction"), ("has_log_history", "log")]:
         have = (table[col] == "1")
         log.info(

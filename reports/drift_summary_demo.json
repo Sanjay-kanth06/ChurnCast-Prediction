@@ -1,0 +1,39 @@
+{
+  "n_features": 8,
+  "features": [
+    "recency_days",
+    "txns_last_90d",
+    "active_days_last_30d",
+    "total_secs_last_30d",
+    "engagement_trend",
+    "plan_price",
+    "tenure_days",
+    "is_auto_renew"
+  ],
+  "drifted_features": 6,
+  "share_drifted": 0.75,
+  "per_column_drift_score": {
+    "recency_days": 0.794446,
+    "txns_last_90d": 0.013465,
+    "active_days_last_30d": 1.294085,
+    "total_secs_last_30d": 0.541325,
+    "engagement_trend": 0.256221,
+    "plan_price": 0.315211,
+    "tenure_days": 0.028418,
+    "is_auto_renew": 0.345557
+  },
+  "output_path": "C:\\Users\\Sanjay kanth\\Downloads\\churncast_week1-2\\churncast\\reports\\drift_report_2026-09-15_synthetic_drift_demo.html",
+  "mode": "demo",
+  "reference_rows": 5030,
+  "current_rows": 1235,
+  "reference_cohorts": [
+    "2024-07",
+    "2024-08",
+    "2024-09",
+    "2024-10"
+  ],
+  "current_cohorts": [
+    "2024-12"
+  ],
+  "note": "Synthetic drift demonstration - the current dataset was deliberately shifted. Not observed production drift."
+}

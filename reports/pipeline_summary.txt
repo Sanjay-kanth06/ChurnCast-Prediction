@@ -1,0 +1,56 @@
+============================================================
+ChurnCast Prototype Pipeline
+============================================================
+
+Dataset:
+  KKBOX-like synthetic dataset (NOT official KKBOX data)
+  Subscribers        : 7,500
+  Churn rate         : 0.3036
+  Seed               : 42
+
+Features:
+  Feature count      : 27
+  Feature table      : C:\Users\Sanjay kanth\Downloads\churncast_week1-2\churncast\data\processed\features.csv
+
+Temporal split (by observation-cutoff cohort):
+  Train  ['2024-07', '2024-08', '2024-09', '2024-10']  n=5,030
+  Val    ['2024-11']  n=1,235
+  Test   ['2024-12']  n=1,235
+
+Validation metrics (used for model selection):
+  logistic_regression    ROC-AUC 0.7835  PR-AUC 0.6966  F1 0.5513
+  gradient_boosting      ROC-AUC 0.7824  PR-AUC 0.7044  F1 0.5750
+
+Best model: logistic_regression
+
+Test metrics (held-out cohort, scored once):
+  ROC-AUC 0.7957  PR-AUC 0.6904  Precision 0.7309  Recall 0.4579  F1 0.5630
+
+MLflow:
+  Experiment         : ChurnCast
+  Run ID             : 93a2a40a8525449190bece8f7ca6e14a
+  Registered model   : ChurnCastModel
+  Version            : 1
+  Registry decision  : registered ChurnCastModel v1 (val_roc_auc=0.7835, first version)
+
+Drift report (synthetic drift demonstration):
+  Drifted features   : 6/8
+  Report             : C:\Users\Sanjay kanth\Downloads\churncast_week1-2\churncast\reports\drift_report_2026-09-15.html
+
+Artifacts written to reports/:
+  classification_report.txt
+  confusion_matrix.png
+  drift_report_2026-09-15.html
+  drift_report_2026-09-15_synthetic_drift_demo.html
+  drift_summary_demo.json
+  drift_summary_natural.json
+  model_comparison.csv
+  model_metrics.json
+  pipeline_summary.txt
+  precision_recall_curve.png
+  roc_curve.png
+
+Elapsed: 44.7s
+============================================================
+Pipeline completed successfully
+============================================================

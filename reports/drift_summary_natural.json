@@ -1,0 +1,38 @@
+{
+  "n_features": 8,
+  "features": [
+    "recency_days",
+    "txns_last_90d",
+    "active_days_last_30d",
+    "total_secs_last_30d",
+    "engagement_trend",
+    "plan_price",
+    "tenure_days",
+    "is_auto_renew"
+  ],
+  "drifted_features": 0,
+  "share_drifted": 0.0,
+  "per_column_drift_score": {
+    "recency_days": 0.02772,
+    "txns_last_90d": 0.013465,
+    "active_days_last_30d": 0.031939,
+    "total_secs_last_30d": 0.021333,
+    "engagement_trend": 0.056393,
+    "plan_price": 0.026186,
+    "tenure_days": 0.028418,
+    "is_auto_renew": 0.009196
+  },
+  "output_path": "C:\\Users\\Sanjay kanth\\Downloads\\churncast_week1-2\\churncast\\reports\\drift_report_2026-09-15.html",
+  "mode": "natural",
+  "reference_rows": 5030,
+  "current_rows": 1235,
+  "reference_cohorts": [
+    "2024-07",
+    "2024-08",
+    "2024-09",
+    "2024-10"
+  ],
+  "current_cohorts": [
+    "2024-12"
+  ]
+}
