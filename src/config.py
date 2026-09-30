@@ -72,6 +72,47 @@ def risk_level(probability: float) -> str:
     return "HIGH"
 
 
+# ------------------------------------------------- recommendation policy
+# A BUSINESS-RULE layer sitting on top of the model, not a model output.
+#
+# risk_level() above is the model's classification and is never altered by
+# anything here. These bands only decide how strongly the interface suggests
+# acting, so that a 0.72 and a 0.98 subscriber -- both correctly HIGH to the
+# model -- do not receive identical operational urgency. Kept here rather than
+# inline so the policy is tunable in one place.
+RECOMMEND_TARGETED_THRESHOLD = float(
+    os.environ.get("CHURNCAST_RECOMMEND_TARGETED", 0.70))
+RECOMMEND_HIGH_PRIORITY_THRESHOLD = float(
+    os.environ.get("CHURNCAST_RECOMMEND_HIGH_PRIORITY", 0.85))
+RECOMMEND_CRITICAL_THRESHOLD = float(
+    os.environ.get("CHURNCAST_RECOMMEND_CRITICAL", 0.95))
+
+# Severities that authorise a retention intervention. LOW-risk subscribers are
+# deliberately absent: a single declining feature must not trigger outreach
+# when the model's overall estimate is low.
+INTERVENTION_SEVERITIES = frozenset(
+    {"EARLY_ENGAGEMENT", "TARGETED", "HIGH_PRIORITY", "CRITICAL"})
+
+
+def recommendation_severity(probability: float) -> str:
+    """How strongly to act, given the model's probability and risk band.
+
+    Returns NONE, EARLY_ENGAGEMENT, TARGETED, HIGH_PRIORITY or CRITICAL. This
+    is policy, not prediction: it never feeds back into risk_level().
+    """
+    band = risk_level(probability)
+    if band == "LOW":
+        return "NONE"
+    if band == "MEDIUM":
+        return "EARLY_ENGAGEMENT"
+    # HIGH: graduate by probability inside the band.
+    if probability >= RECOMMEND_CRITICAL_THRESHOLD:
+        return "CRITICAL"
+    if probability >= RECOMMEND_HIGH_PRIORITY_THRESHOLD:
+        return "HIGH_PRIORITY"
+    return "TARGETED"
+
+
 # --------------------------------------------------------------- API
 API_HOST = os.environ.get("CHURNCAST_API_HOST", "127.0.0.1")
 API_PORT = int(os.environ.get("CHURNCAST_API_PORT", 8000))

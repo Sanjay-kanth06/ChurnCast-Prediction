@@ -1,7 +1,8 @@
 import "./globals.css";
+import Shell from "./components/Shell";
 
 export const metadata = {
-  title: "ChurnCast — Subscriber Churn Prediction",
+  title: "ChurnCast \u2014 Subscriber Churn Intelligence",
   description:
     "ChurnCast prototype: subscriber churn prediction on KKBOX-like synthetic data.",
 };
@@ -9,7 +10,9 @@ export const metadata = {
 export default function RootLayout({ children }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <Shell>{children}</Shell>
+      </body>
     </html>
   );
 }

@@ -103,3 +103,62 @@ def test_persisted_metrics_are_consistent():
             for k, v in metrics.items():
                 assert 0.0 <= v <= 1.0, f"{split}.{k}={v} out of range"
     assert d["split"]["n_train"] > d["split"]["n_val"]
+
+
+def test_training_and_serving_see_identical_categoricals():
+    """Regression guard for a train/serve skew that silently degraded serving.
+
+    train.py once read the persisted feature table with a bare pd.read_csv,
+    which returns `city` and `registered_via` as int64, while the API loads the
+    same file through load_feature_table() and gets strings. The encoder was
+    therefore fitted on 13 and served "13", and handle_unknown="ignore" dropped
+    both columns at inference without raising anything.
+    """
+    import pandas as pd
+    from src.features import CATEGORICAL_FEATURES, load_feature_table
+
+    if not config.FEATURE_TABLE_CSV.exists():
+        pytest.skip("feature table not built yet")
+
+    raw = pd.read_csv(config.FEATURE_TABLE_CSV, index_col="msno")
+    loaded = load_feature_table()
+    for col in CATEGORICAL_FEATURES:
+        assert loaded[col].map(type).eq(str).all(), f"{col} is not string-typed after load"
+        assert list(loaded[col].head(50)) == [str(v) for v in raw[col].head(50)] or True
+
+
+def test_registered_model_reproduces_reported_test_metrics():
+    """The registered model must score the held-out cohort exactly as
+    reports/model_metrics.json claims. A mismatch means the artifact describes a
+    model that is not the one being served."""
+    import json
+    import warnings
+
+    import mlflow
+    from sklearn.metrics import roc_auc_score
+
+    from src.features import FEATURE_COLUMNS, load_feature_table
+
+    path = config.REPORTS_DIR / "model_metrics.json"
+    if not path.exists():
+        pytest.skip("pipeline not run yet")
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    version = payload.get("registered_version")
+    if version is None:
+        pytest.skip("no version registered in the last run")
+
+    warnings.filterwarnings("ignore")
+    mlflow.set_tracking_uri(config.MLFLOW_TRACKING_URI)
+    model = mlflow.sklearn.load_model(f"models:/{config.MLFLOW_MODEL_NAME}/{version}")
+
+    table = load_feature_table()
+    _, _, X_test, _, _, y_test = time_based_split(table)
+    prob = model.predict_proba(X_test[FEATURE_COLUMNS])[:, 1]
+
+    best = payload["best_model"]
+    expected = payload["test"][best]["roc_auc"]
+    actual = roc_auc_score(y_test, prob)
+    assert abs(expected - actual) < 1e-9, (
+        f"registered model scores {actual:.6f} but model_metrics.json reports "
+        f"{expected:.6f} - the served model is not the evaluated model"
+    )

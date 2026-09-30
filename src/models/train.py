@@ -43,7 +43,7 @@ from xgboost import XGBClassifier  # noqa: E402
 
 from src import config  # noqa: E402
 from src.features import (  # noqa: E402
-    FEATURE_COLUMNS, build_feature_table, build_preprocessor,
+    FEATURE_COLUMNS, build_feature_table, build_preprocessor, load_feature_table,
 )
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -256,7 +256,12 @@ def main(rebuild_features: bool = False) -> dict:
     if rebuild_features or not config.FEATURE_TABLE_CSV.exists():
         table = build_feature_table()
     else:
-        table = pd.read_csv(config.FEATURE_TABLE_CSV, index_col="msno")
+        # load_feature_table(), not a bare read_csv: the loader re-applies
+        # normalise_categoricals(). Reading the CSV directly brings `city` and
+        # `registered_via` back as int64, so the encoder would be fitted on 13
+        # while the API -- which does go through the loader -- serves "13", and
+        # handle_unknown="ignore" would silently drop both columns at inference.
+        table = load_feature_table()
 
     X_train, X_val, X_test, y_train, y_val, y_test = time_based_split(table)
 

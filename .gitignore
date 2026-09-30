@@ -29,3 +29,7 @@ frontend/.env.local
 
 # Local environment
 .env
+
+# Local frontend backup / package
+backup/
+frontend_only.zip

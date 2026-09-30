@@ -7,23 +7,32 @@
 #   mlflow    http://localhost:5000
 #   airflow   http://localhost:8080      (admin / admin)
 #
-# NOT VERIFIED ON THE DEVELOPMENT MACHINE: Docker is not installed there, so
-# this file has been written and linted but never brought up. Treat it as
-# untested configuration until `docker compose up --build` has been run.
+# Verified on 2026-09-24 against Docker Engine 29.8.0: all five services build
+# and start, the API serves member-ID predictions, and the Airflow scheduler
+# executes the churncast_retrain DAG.
 #
-# The api and airflow services share ./data, ./reports and ./mlruns through bind
-# mounts so that a pipeline run in either container is visible to the other and
-# on the host.
+# The api and airflow services share ./data and ./reports through bind mounts so
+# that a pipeline run in either container is visible to the other and on the
+# host. MLflow artifacts are NOT shared by bind mount -- they go through the
+# tracking server's artifact proxy (see the mlflow command below).
 
 services:
   mlflow:
     image: ghcr.io/mlflow/mlflow:v3.1.0
     container_name: churncast-mlflow
+    # --artifacts-destination + --serve-artifacts, NOT --default-artifact-root.
+    # A default-artifact-root of /mlflow/mlruns is interpreted by each CLIENT as
+    # a local path: the API container (root) silently created its own /mlflow and
+    # wrote artifacts where nothing else could see them, and the Airflow worker
+    # (uid 50000) failed outright with "Permission denied: '/mlflow'". Serving
+    # artifacts through the server gives clients mlflow-artifacts:/ URIs that are
+    # uploaded over HTTP, so every container writes to the same place.
     command: >
       mlflow server
       --host 0.0.0.0 --port 5000
       --backend-store-uri sqlite:////mlflow/mlflow.db
-      --default-artifact-root /mlflow/mlruns
+      --serve-artifacts
+      --artifacts-destination /mlflow/mlruns
     ports:
       - "5000:5000"
     volumes:
@@ -92,12 +101,18 @@ services:
       - "8080:8080"
     volumes:
       - .:/opt/airflow/project
-    command: >
-      bash -c "pip install --no-cache-dir mlflow scikit-learn xgboost pandas numpy pyyaml evidently &&
-               airflow db migrate &&
-               airflow users create --username admin --password admin
-                 --firstname Churn --lastname Cast --role Admin --email admin@example.com || true &&
-               airflow standalone"
+    # "cryptography<45" is required, not cosmetic. Without it pip resolves
+    # cryptography to 50.x, which is incompatible with the pyOpenSSL 24.3.0
+    # already in this image: importing OpenSSL.SSL then dies with
+    # "AttributeError: module 'lib' has no attribute 'GEN_EMAIL'", botocore
+    # fails to import, and the Airflow webserver crash-loops on start.
+    #
+    # The block below is a literal scalar (|), not folded (>). With ">", YAML
+    # preserves the newlines of more-indented lines, which split the
+    # "airflow users create" call across two lines and made it fail with
+    # "the following arguments are required: -e/--email". "|| true" hid it.
+    command: |
+      bash -c "pip install --no-cache-dir 'cryptography<45' mlflow scikit-learn xgboost pandas numpy pyyaml evidently && airflow db migrate && airflow users create --username admin --password admin --firstname Churn --lastname Cast --role Admin --email admin@example.com || true && airflow standalone"
 
   postgres:
     image: postgres:16-alpine

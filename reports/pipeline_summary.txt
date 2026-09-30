@@ -10,7 +10,7 @@ Dataset:
 
 Features:
   Feature count      : 27
-  Feature table      : C:\Users\Sanjay kanth\Downloads\churncast_week1-2\churncast\data\processed\features.csv
+  Feature table      : /app/data/processed/features.csv
 
 Temporal split (by observation-cutoff cohort):
   Train  ['2024-07', '2024-08', '2024-09', '2024-10']  n=5,030
@@ -19,7 +19,7 @@ Temporal split (by observation-cutoff cohort):
 
 Validation metrics (used for model selection):
   logistic_regression    ROC-AUC 0.7835  PR-AUC 0.6966  F1 0.5513
-  gradient_boosting      ROC-AUC 0.7824  PR-AUC 0.7044  F1 0.5750
+  gradient_boosting      ROC-AUC 0.7782  PR-AUC 0.7012  F1 0.5824
 
 Best model: logistic_regression
 
@@ -28,14 +28,10 @@ Test metrics (held-out cohort, scored once):
 
 MLflow:
   Experiment         : ChurnCast
-  Run ID             : 93a2a40a8525449190bece8f7ca6e14a
+  Run ID             : 95f5af6d7dc64222a9f40fe36e964519
   Registered model   : ChurnCastModel
-  Version            : 1
-  Registry decision  : registered ChurnCastModel v1 (val_roc_auc=0.7835, first version)
-
-Drift report (synthetic drift demonstration):
-  Drifted features   : 6/8
-  Report             : C:\Users\Sanjay kanth\Downloads\churncast_week1-2\churncast\reports\drift_report_2026-09-15.html
+  Version            : None
+  Registry decision  : candidate val_roc_auc=0.7835 did not beat incumbent 0.7835; keeping existing model
 
 Artifacts written to reports/:
   classification_report.txt
@@ -50,7 +46,7 @@ Artifacts written to reports/:
   precision_recall_curve.png
   roc_curve.png
 
-Elapsed: 44.7s
+Elapsed: 28.6s
 ============================================================
 Pipeline completed successfully
 ============================================================

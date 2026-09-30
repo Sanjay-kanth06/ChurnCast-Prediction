@@ -1,257 +1,284 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
-  ApiError,
-  getHealth,
-  getModelInfo,
-  getSampleSubscribers,
-  getSubscriberFeatures,
-  predictByMsno,
+  getDashboardSummary,
+  num4,
+  int,
+  modelName,
+  MODES,
+  DASH,
 } from "../lib/api";
+import { TopBar, Card, Kpi, Notice, LoadingCard } from "./components/ui";
+import { useMode } from "./components/Shell";
+import RealDashboard from "./components/RealDashboard";
 
-/** Features surfaced in the read-only profile panel, with display labels. */
-const PROFILE_FIELDS = [
-  ["recency_days", "Recency", (v) => `${Math.round(v)} days`],
-  ["active_days_last_30d", "Active days (30d)", (v) => `${Math.round(v)}`],
-  ["txns_last_90d", "Transactions (90d)", (v) => `${Math.round(v)}`],
-  ["total_secs_last_30d", "Listening (30d)", (v) => `${Math.round(v / 3600)} hrs`],
-  ["engagement_trend", "Engagement trend", (v) => v.toFixed(1)],
-  ["plan_price", "Plan price", (v) => `${Math.round(v)}`],
-  ["is_auto_renew", "Auto renew", (v) => (String(v) === "1" ? "Yes" : "No")],
-  ["tenure_days", "Tenure", (v) => `${Math.round(v)} days`],
+const PIPELINE = [
+  "Raw data",
+  "Validation",
+  "Features",
+  "Temporal split",
+  "Training",
+  "Evaluation",
+  "MLflow",
+  "Registry",
+  "API",
+  "Prediction",
 ];
 
-export default function Home() {
-  const [msno, setMsno] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState(null);
-  const [profile, setProfile] = useState(null);
+const QUICK = [
+  {
+    href: "/predict",
+    ico: "◉",
+    t: "Predict a subscriber",
+    d: "Score one ID and get a personalized retention plan",
+  },
+  {
+    href: "/subscribers",
+    ico: "☰",
+    t: "Browse subscribers",
+    d: "Search, filter and sort the scored population",
+  },
+  {
+    href: "/model",
+    ico: "◩",
+    t: "Model intelligence",
+    d: "Metrics, features and registry state",
+  },
+];
+
+export default function DashboardPage() {
+  const router = useRouter();
+  const { mode, status } = useMode();
+  const [data, setData] = useState(null);
   const [error, setError] = useState(null);
-  const [samples, setSamples] = useState([]);
-  const [health, setHealth] = useState(null);
-  const [info, setInfo] = useState(null);
 
-  // Service status and sample IDs come from the backend, never hard-coded.
   useEffect(() => {
-    getHealth().then(setHealth).catch(() => setHealth(null));
-    getModelInfo().then(setInfo).catch(() => setInfo(null));
-    getSampleSubscribers(3)
-      .then((d) => setSamples(d.subscribers || []))
-      .catch(() => setSamples([]));
-  }, []);
+    if (mode !== "synthetic") return;
+    getDashboardSummary()
+      .then(setData)
+      .catch((e) => setError(e.message));
+  }, [mode]);
 
-  const handlePredict = useCallback(async () => {
-    const id = msno.trim();
-    if (!id) {
-      setError({ title: "Invalid input", body: "Please enter a valid Subscriber ID." });
-      setResult(null);
-      setProfile(null);
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-    setResult(null);
-    setProfile(null);
-
-    try {
-      const prediction = await predictByMsno(id);
-      setResult(prediction);
-      // profile is supplementary; a failure here must not hide the prediction
-      try {
-        const f = await getSubscriberFeatures(id);
-        setProfile(f.features);
-      } catch {
-        setProfile(null);
+  const header = (
+    <TopBar
+      title="Dashboard"
+      subtitle="Subscriber churn intelligence overview"
+      right={
+        <>
+          <span className="chip">
+            <span className="dot up" />
+            {status?.[mode]?.online ? "Online" : "Offline"}
+          </span>
+          <span className="chip accent">{MODES[mode].dataLabel}</span>
+        </>
       }
-    } catch (e) {
-      if (e instanceof ApiError && e.status === 404) {
-        setError({
-          title: "Subscriber not found",
-          body: "Please check the Member ID and try again.",
-        });
-      } else if (e instanceof ApiError && e.status === 422) {
-        setError({ title: "Invalid input", body: e.message });
-      } else if (e instanceof ApiError && e.status === 503) {
-        setError({
-          title: "Service unavailable",
-          body: "The model is not loaded. Run the pipeline, then try again.",
-        });
-      } else {
-        setError({
-          title: "Something went wrong",
-          body:
-            e instanceof ApiError
-              ? e.message
-              : "Prediction service is currently unavailable. Please try again.",
-        });
-      }
-    } finally {
-      setLoading(false);
-    }
-  }, [msno]);
+    />
+  );
 
-  const onKeyDown = (e) => {
-    if (e.key === "Enter" && !loading) handlePredict();
-  };
+  const quickAccess = (
+    <>
+      <div className="sec-title">Quick access</div>
+      <div className="grid g3">
+        {QUICK.map((q) => (
+          <div
+            key={q.href}
+            className="card card-hover qa"
+            onClick={() => router.push(q.href)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") router.push(q.href);
+            }}
+            role="link"
+            tabIndex={0}
+          >
+            <div className="qa-ico" aria-hidden="true">
+              {q.ico}
+            </div>
+            <div>
+              <div className="qa-t">{q.t}</div>
+              <div className="qa-d">{q.d}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </>
+  );
 
-  const pct = result ? (result.churn_probability * 100).toFixed(1) : null;
+  // Real mode renders the company-level intelligence view, backed entirely
+  // by the precomputed population artifact.
+  if (mode === "real") return <RealDashboard />;
+
+  if (error) {
+    return (
+      <>
+        {header}
+        <div className="content">
+          <Notice kind="err" title="Unable to load the dashboard">
+            {error} No figures are shown, because none could be retrieved from
+            the backend.
+          </Notice>
+        </div>
+      </>
+    );
+  }
+
+  if (!data) {
+    return (
+      <>
+        {header}
+        <div className="content grid g2">
+          <LoadingCard />
+          <LoadingCard />
+        </div>
+      </>
+    );
+  }
+
+  const m = data.model ?? {};
+  const dist = data.risk_distribution ?? [];
+  const th = data.risk_thresholds ?? {};
 
   return (
-    <main className="wrap">
-      <header className="header">
-        <h1 className="title">CHURNCAST</h1>
-        <p className="subtitle">Subscriber Churn Prediction</p>
-        <p className="tagline">
-          Predict whether a subscriber is likely to churn within 30 days.
-        </p>
-        <span className="badge">Prototype — Synthetic Data</span>
-      </header>
+    <>
+      {header}
+      <div className="content">
+        <div className="grid g4">
+          <Kpi
+            label="Subscribers scored"
+            value={int(data.total_subscribers)}
+            foot="Entire population, scored by the registered model"
+          />
+          <Kpi
+            label="Registered model"
+            value={m.version ? `v${m.version}` : DASH}
+            foot={modelName(m.algorithm) ?? "Algorithm unavailable"}
+            small
+          />
+          <Kpi
+            label="Test ROC-AUC"
+            value={num4(m.test_roc_auc)}
+            foot={
+              m.validation_roc_auc
+                ? `Validation ${num4(m.validation_roc_auc)}`
+                : "Validation unavailable"
+            }
+          />
+          <Kpi
+            label="Features"
+            value={int(data.feature_count)}
+            foot="Leakage-aware, built before the observation cutoff"
+          />
+        </div>
 
-      <section className="card">
-        <label className="field-label" htmlFor="msno-input">
-          Subscriber ID
-        </label>
-        <input
-          id="msno-input"
-          type="text"
-          value={msno}
-          placeholder="SYN000001"
-          autoComplete="off"
-          spellCheck={false}
-          disabled={loading}
-          onChange={(e) => setMsno(e.target.value)}
-          onKeyDown={onKeyDown}
-          aria-label="Subscriber ID"
-        />
+        <div className="sec-title">Risk distribution</div>
+        <div className="grid g21">
+          <Card
+            className="insight"
+            title="Scored population by risk band"
+            subtitle={`Counted from ${int(
+              data.total_subscribers
+            )} model predictions, not sampled or estimated`}
+          >
+            <div className="riskbar">
+              {dist.map((d) => (
+                <div className="rb-row" key={d.level}>
+                  <span className={`badge ${d.level}`}>{d.level}</span>
+                  <div className="rb-track">
+                    <div
+                      className={`rb-fill ${d.level}`}
+                      style={{ width: `${(d.share * 100).toFixed(2)}%` }}
+                    />
+                  </div>
+                  <span className="rb-meta">
+                    {int(d.count)} &middot; {(d.share * 100).toFixed(2)}%
+                  </span>
+                </div>
+              ))}
+            </div>
 
-        <button
-          className="primary"
-          onClick={handlePredict}
-          disabled={loading}
-          aria-busy={loading}
-        >
-          {loading ? "Analyzing subscriber…" : "Predict Churn"}
-        </button>
+            <div style={{ marginTop: 22 }}>
+              <Notice>
+                Bands come from the configured thresholds: <b>LOW</b> below{" "}
+                {th.low_below ?? DASH}, <b>MEDIUM</b> from{" "}
+                {th.low_below ?? DASH} to {th.high_at_or_above ?? DASH},{" "}
+                <b>HIGH</b> at or above {th.high_at_or_above ?? DASH}.
+              </Notice>
+            </div>
+          </Card>
 
-        {samples.length > 0 && (
-          <div className="samples">
-            <span className="samples-label">Try a sample:</span>
-            {samples.map((s) => (
-              <button
-                key={s}
-                className="chip"
-                disabled={loading}
-                onClick={() => setMsno(s)}
-                type="button"
-              >
-                {s}
-              </button>
+          <Card title="Model health">
+            <div className="dl">
+              <div className="dl-row">
+                <span className="dl-k">Name</span>
+                <span className="dl-v mono">{m.name ?? DASH}</span>
+              </div>
+              <div className="dl-row">
+                <span className="dl-k">Version</span>
+                <span className="dl-v">
+                  {m.version ? `v${m.version}` : DASH}
+                </span>
+              </div>
+              <div className="dl-row">
+                <span className="dl-k">Algorithm</span>
+                <span className="dl-v">{modelName(m.algorithm) ?? DASH}</span>
+              </div>
+              <div className="dl-row">
+                <span className="dl-k">State</span>
+                <span className="dl-v">
+                  <span className="badge LOW">{m.status ?? DASH}</span>
+                </span>
+              </div>
+              <div className="dl-row">
+                <span className="dl-k">Cohorts</span>
+                <span className="dl-v">
+                  {data.cohorts?.length ? data.cohorts.length : DASH}
+                </span>
+              </div>
+            </div>
+            <button
+              className="btn-ghost"
+              style={{ width: "100%", marginTop: 18 }}
+              onClick={() => router.push("/model")}
+            >
+              View full model card
+            </button>
+          </Card>
+        </div>
+
+        {quickAccess}
+
+        <div className="sec-title">Pipeline</div>
+        <Card>
+          <div className="pipe">
+            {PIPELINE.map((s, i) => (
+              <span key={s} style={{ display: "inline-flex", gap: 8 }}>
+                <span
+                  className={`pipe-step${
+                    i === PIPELINE.length - 1 ? " hl" : ""
+                  }`}
+                >
+                  {s}
+                </span>
+                {i < PIPELINE.length - 1 ? (
+                  <span className="pipe-arrow" aria-hidden="true">
+                    &rarr;
+                  </span>
+                ) : null}
+              </span>
             ))}
           </div>
-        )}
-      </section>
-
-      {error && (
-        <div className="message error" role="alert">
-          <strong>{error.title}</strong>
-          <p>{error.body}</p>
-        </div>
-      )}
-
-      {result && (
-        <section className="card" aria-live="polite">
-          <div className="result-head">Prediction Result</div>
-
-          <div className="result-grid">
-            <div className="result-item">
-              <div className="item-label">Subscriber ID</div>
-              <div className="item-value mono">{result.msno}</div>
-            </div>
-            <div className="result-item">
-              <div className="item-label">Churn Probability</div>
-              <div className="prob">{pct}%</div>
-            </div>
-            <div className="result-item">
-              <div className="item-label">Prediction</div>
-              <div className="item-value">
-                {result.predicted_label === 1 ? "LIKELY TO CHURN" : "LIKELY TO STAY"}
-              </div>
-            </div>
-            <div className="result-item">
-              <div className="item-label">Risk Level</div>
-              <div>
-                <span className={`pill ${result.risk_level}`}>{result.risk_level}</span>
-              </div>
-            </div>
-            <div className="result-item">
-              <div className="item-label">Model Version</div>
-              <div className="item-value mono">{result.model_version}</div>
-            </div>
+          <div style={{ marginTop: 20 }}>
+            <Notice kind="warn" title="Prototype on synthetic data">
+              Every figure on this page is computed from a generated
+              KKBOX-like dataset, not the official KKBOX competition data. The
+              metrics are real measurements of a real model, but they describe
+              performance on synthetic subscribers. Switch to Real mode for the
+              KKBOX-trained model.
+            </Notice>
           </div>
-
-          <div className="meter" aria-hidden="true">
-            <div
-              className={`meter-fill ${result.risk_level}`}
-              style={{ width: `${Math.min(100, result.churn_probability * 100)}%` }}
-            />
-          </div>
-
-          {profile && (
-            <details className="features">
-              <summary>View Subscriber Features</summary>
-              <div className="feature-grid">
-                {PROFILE_FIELDS.map(([key, label, fmt]) => {
-                  const raw = profile[key];
-                  if (raw === null || raw === undefined) return null;
-                  let shown;
-                  try {
-                    shown = fmt(typeof raw === "string" ? raw : Number(raw));
-                  } catch {
-                    shown = String(raw);
-                  }
-                  return (
-                    <div className="feature-cell" key={key}>
-                      <div className="feature-name">{label}</div>
-                      <div className="feature-val">{shown}</div>
-                    </div>
-                  );
-                })}
-              </div>
-              <p className="readonly-note">
-                Read-only values retrieved from the feature table for this subscriber.
-              </p>
-            </details>
-          )}
-        </section>
-      )}
-
-      <div className="status-bar">
-        <div className="status-item">
-          <span className={`dot ${health?.status === "ok" ? "up" : "down"}`} />
-          API <b>{health ? (health.status === "ok" ? "Healthy" : "Degraded") : "Offline"}</b>
-        </div>
-        <div className="status-item">
-          <span className={`dot ${health?.model_available ? "up" : "down"}`} />
-          Model <b>{health?.model_available ? "Available" : "Unavailable"}</b>
-        </div>
-        <div className="status-item">
-          Version <b>{health?.model_version ?? "—"}</b>
-        </div>
-        <div className="status-item">
-          Type <b>{info?.model_type ?? "—"}</b>
-        </div>
-        <div className="status-item">
-          Subscribers <b>{health?.subscribers?.toLocaleString() ?? "—"}</b>
-        </div>
+        </Card>
       </div>
-
-      <footer className="note">
-        ChurnCast runs on deterministic <strong>KKBOX-like synthetic data</strong>.
-        <br />
-        It demonstrates the MLOps architecture; results are not KKBOX benchmark figures.
-      </footer>
-    </main>
+    </>
   );
 }
